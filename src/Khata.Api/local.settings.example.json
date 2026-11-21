@@ -1,7 +1,14 @@
 {
   "IsEncrypted": false,
   "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated"
+    "AzureWebJobsStorage__accountName": "",
+    "AzureFunctionsWebHost__hostid": "khata-local-developer",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "Auth__Origin": "http://localhost:5173",
+    "Auth__GoogleClientId": "",
+    "Auth__CredentialSource": "AzureCli",
+    "Cosmos__Endpoint": "",
+    "Cosmos__Database": "khata",
+    "Cosmos__Container": "authentication"
   }
 }

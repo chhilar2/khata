@@ -1,12 +1,35 @@
-body {
+:root {
   font-family: system-ui, sans-serif;
-  margin: 0;
-  background: #f5f7fb;
-  color: #17243b;
+  color: #172f2b;
+  background: #f7f8ef;
+  font-synthesis: none;
 }
 
-main {
-  max-width: 48rem;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
+* { box-sizing: border-box; }
+body { margin: 0; }
+.page { max-width: 76rem; margin: auto; padding: 0 2rem 4rem; }
+.site-header { display: flex; justify-content: space-between; align-items: center; padding: 2rem 0; }
+.brand { color: #173c34; text-decoration: none; font-size: 1.8rem; font-weight: 850; letter-spacing: -.08em; }
+.brand span, h1 span { color: #da6c46; }
+.header-note { color: #6a7d72; font-size: .85rem; }
+.hero { background: #e7f0d8; border-radius: 2rem; padding: clamp(2.5rem, 7vw, 6rem); margin: 2rem 0; }
+.eyebrow { font-size: .72rem; font-weight: 800; letter-spacing: .16em; color: #537861; }
+h1 { font-size: clamp(3rem, 7vw, 5.5rem); letter-spacing: -.06em; line-height: 1.04; margin: 1rem 0 1.5rem; }
+.intro { font-size: 1.1rem; line-height: 1.7; max-width: 35rem; color: #4e6759; margin-bottom: 2rem; }
+.button { display: inline-flex; gap: 1rem; align-items: center; background: #173c34; color: white; border: 0; border-radius: 999px; padding: 1rem 1.5rem; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+.button:hover { background: #28564a; }
+.button:disabled { opacity: .6; cursor: wait; }
+.secondary { background: #476b5d; }
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.features article { background: #fff; padding: 2rem; border-radius: 1.3rem; }
+.features article span { color: #d07150; font-size: .8rem; font-weight: 800; }
+.features h2 { font-size: 1.25rem; margin: 1rem 0 .5rem; }
+.features p, .footnote { color: #63766b; line-height: 1.6; }
+.footnote { font-size: .85rem; }
+.notice { background: #fff0e9; color: #873e26; padding: 1rem; border-radius: .75rem; }
+@media (max-width: 640px) {
+  .page { padding: 0 1rem 3rem; }
+  .header-note { display: none; }
+  .hero { border-radius: 1.5rem; }
+  .features { grid-template-columns: 1fr; }
 }
