@@ -1,0 +1,72 @@
+name: Deploy development
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khata-development-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/Khata.Web/package-lock.json
+      - name: Build and test
+        run: |
+          ./scripts/build.sh
+          ./scripts/test.sh
+          ./scripts/publish.sh
+      - name: Package API
+        run: |
+          cd artifacts/api
+          zip -qr ../api.zip . -x local.settings.json './local.settings.json'
+      - name: Retain release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: khata-${{ github.sha }}
+          path: |
+            artifacts/api.zip
+            src/Khata.Web/dist
+          retention-days: 30
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy API
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          FUNCTION_APP: ${{ vars.AZURE_FUNCTION_APP }}
+        run: az functionapp deployment source config-zip --resource-group "$RESOURCE_GROUP" --name "$FUNCTION_APP" --src artifacts/api.zip
+      - name: Deploy frontend
+        env:
+          STORAGE_ACCOUNT: ${{ vars.AZURE_WEBSITE_STORAGE }}
+        run: |
+          az storage blob upload-batch --account-name "$STORAGE_ACCOUNT" --destination '$web/assets' --source src/Khata.Web/dist/assets --auth-mode login --overwrite true --content-cache-control 'public, max-age=31536000, immutable'
+          az storage blob upload --account-name "$STORAGE_ACCOUNT" --container-name '$web' --name index.html --file src/Khata.Web/dist/index.html --auth-mode login --overwrite true --content-type 'text/html; charset=utf-8' --content-cache-control 'no-cache'
+      - name: Verify health and anonymous access
+        env:
+          KHATA_API_BASE_URL: ${{ vars.KHATA_ORIGIN }}
+        run: |
+          curl --fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors "$KHATA_API_BASE_URL/api/health"
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$KHATA_API_BASE_URL/api/auth/session")
+          test "$status" = 401
+          ./scripts/test-e2e.sh
+          echo 'Manual Google sign-in and logout verification is still required.' >> "$GITHUB_STEP_SUMMARY"
