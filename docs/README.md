@@ -185,7 +185,10 @@ Create a protected GitHub environment named `development`, and set these
 environment **variables** (not secrets): `AZURE_CLIENT_ID` from the deployment
 identity output, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
 `AZURE_RESOURCE_GROUP`, `AZURE_FUNCTION_APP`, `AZURE_WEBSITE_STORAGE`, and
-`KHATA_ORIGIN`. Protect the main branch and require environment approval.
+`KHATA_ORIGIN`. The template's GitHub OIDC subject is bound to this
+repository's immutable owner and repository IDs; if using another repository,
+set `githubRepository` to its `owner@ownerId/name@repositoryId` subject
+format. Protect the main branch and require environment approval.
 Run the **Deploy development** workflow manually from `main`. It builds,
 tests, uploads both artifacts with federated authentication, and tests health
 and anonymous access. Verify Google sign-in and logout manually afterward;

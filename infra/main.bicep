@@ -11,8 +11,8 @@ param googleClientId string
 @minLength(1)
 param developerPrincipalId string
 
-@description('GitHub repository in owner/name form.')
-param githubRepository string = 'chhilar2/khata'
+@description('GitHub repository in immutable owner@ownerId/name@repositoryId subject format.')
+param githubRepository string = 'chhilar2@307834270/khata@1466709897'
 
 @description('Protected GitHub environment used for code deployment.')
 param githubEnvironment string = 'development'
