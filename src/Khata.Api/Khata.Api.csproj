@@ -1,0 +1,15 @@
+<Project Sdk="Azure.Functions.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Khata.Application/Khata.Application.csproj" />
+    <ProjectReference Include="../Khata.Infrastructure/Khata.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
