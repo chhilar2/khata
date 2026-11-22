@@ -2,7 +2,8 @@
 
 MoneySprout (the Khata codebase) is a starter portal for parents to manage their children's ledgers;
 children do not access the portal directly. Google sign-in and server-side
-sessions use Cosmos DB. Balances, investments, and gig jobs are **not
+sessions use Cosmos DB. Account holders can manage profiles for themselves
+or dependents; only the creator can access a profile. Balances, investments, and gig jobs are **not
 implemented**. Anonymous `GET /api/health` is a liveness check and does not
 check authentication or the database.
 
@@ -32,8 +33,9 @@ future designs. In VS Code, use **Chat: Open Customizations** and select
 **Skills** to inspect workspace skills.
 
 The [deployment designs](./designs/Deployment/resource-deployment-design.md)
-describe the keyless Azure development setup. The template and workflow have
-not yet been verified against a deployed Azure environment.
+describe the keyless Azure development setup. The
+[managed profiles design](./designs/Profiles/managed-profiles-design.md)
+describes the profile API and its data lifecycle.
 
 ## Prerequisites
 
@@ -135,6 +137,9 @@ are not verified. Country and currency accept supported ISO two- and
 three-letter codes, respectively. Existing users need to sign in again to
 initialize a missing profile. Profile details are stored in the same Cosmos
 container as authentication records.
+Managed profiles use a separate `managed-profiles` container, partitioned by
+account-holder ID. The creator can add, edit, and permanently delete profiles;
+sharing is not supported. Profile creation retains a retry receipt for 24 hours.
 The portal is intended for parents, but sign-in permits any Google account
 that Google allows for the OAuth client; parent status is not verified.
 Assess privacy and security requirements for children's ledger data before
@@ -159,8 +164,7 @@ Google account and Cosmos DB are needed to verify the complete sign-in flow.
 
 `infra/main.bicep` defines the development resources, runtime identity,
 developer access and a separate GitHub deployment identity. It creates
-billable resources, disables Cosmos and storage key authentication, and is
-**not yet verified by an Azure deployment**. Review the
+billable resources and disables Cosmos and storage key authentication. Review the
 [resource deployment design](./designs/Deployment/resource-deployment-design.md),
 pricing, backup needs and what-if output before applying it. An administrator
 needs permission to create resources, attach identities and assign Azure and
@@ -178,6 +182,12 @@ az deployment group create --resource-group '<dev-resource-group>' \
   --template-file infra/main.bicep \
   --parameters googleClientId='<google-client-id>' developerPrincipalId='<user-object-id>'
 ```
+
+For an existing environment, deploy the updated template before deploying the
+managed-profiles application. It creates the `managed-profiles` Cosmos
+container and grants scoped data-plane roles to the runtime and configured
+developer identity; wait for role propagation before testing or debugging.
+The new container and role assignments have not yet been verified in Azure.
 
 Replace the quoted placeholders with your values.
 Obtain the user object ID with `az ad signed-in-user show --query id -o tsv`.

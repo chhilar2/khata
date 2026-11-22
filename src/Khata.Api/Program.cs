@@ -47,5 +47,12 @@ builder.Services.AddSingleton<IAccountStore>(services =>
         .GetContainer(settings.CosmosDatabase, settings.CosmosContainer),
         services.GetRequiredService<TimeProvider>());
 });
+builder.Services.AddSingleton<IManagedProfileStore>(services =>
+{
+    var settings = services.GetRequiredService<AuthSettings>();
+    return new CosmosManagedProfileStore(services.GetRequiredService<CosmosClient>()
+        .GetContainer(settings.CosmosDatabase, "managed-profiles"),
+        services.GetRequiredService<TimeProvider>());
+});
 builder.Services.AddSingleton<AuthenticationService>();
 builder.Build().Run();

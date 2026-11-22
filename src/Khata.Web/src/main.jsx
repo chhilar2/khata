@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import ManagedProfilesPage from './ManagedProfilesPage';
 import './style.css';
 
 const accountFields = [
@@ -169,6 +170,7 @@ function App() {
   const googleButton = useRef(null);
   const isPortal = window.location.pathname === '/portal';
   const isAccount = isPortal && new URLSearchParams(window.location.search).get('view') === 'account';
+  const isProfiles = isPortal && new URLSearchParams(window.location.search).get('view') === 'profiles';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -276,7 +278,9 @@ function App() {
       </header>
       <main>
         {error && <p className="notice wrap" role="alert">{error}</p>}
-        {isAccount && session ? (
+        {isProfiles && session ? (
+          <ManagedProfilesPage session={session} />
+        ) : isAccount && session ? (
           <AccountPage session={session} signOut={signOut} signingOut={signingOut} />
         ) : isPortal ? (
           <section className="portal wrap">
@@ -284,9 +288,10 @@ function App() {
               <>
                 <p className="eyebrow">YOUR PORTAL</p>
                 <h1>Welcome to MoneySprout.</h1>
-                <p className="intro">Your space to manage a ledger for your kids is ready. More features are coming soon.</p>
+                <p className="intro">Create managed profiles for yourself or people you manage. Ledger features are coming soon.</p>
                 <div className="actions">
                   <a className="button" href="/portal?view=account">Your account</a>
+                  <a className="button button-outline" href="/portal?view=profiles">Managed profiles</a>
                   <button className="button secondary" onClick={signOut} disabled={signingOut}>
                     {signingOut ? 'Signing out...' : 'Sign out'}
                   </button>

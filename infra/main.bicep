@@ -181,8 +181,26 @@ resource authContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/conta
   }
 }
 
+resource managedProfilesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: database
+  name: 'managed-profiles'
+  properties: {
+    resource: {
+      id: 'managed-profiles'
+      partitionKey: {
+        paths: [
+          '/ownerId'
+        ]
+        kind: 'Hash'
+      }
+      defaultTtl: -1
+    }
+  }
+}
+
 var cosmosDataContributor = '${cosmos.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
 var authScope = '${cosmos.id}/dbs/${database.name}/colls/${authContainer.name}'
+var managedProfilesScope = '${cosmos.id}/dbs/${database.name}/colls/${managedProfilesContainer.name}'
 
 resource runtimeCosmosRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
   parent: cosmos
@@ -201,6 +219,26 @@ resource developerCosmosRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssig
     principalId: developerPrincipalId
     roleDefinitionId: cosmosDataContributor
     scope: authScope
+  }
+}
+
+resource runtimeProfilesRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
+  parent: cosmos
+  name: guid(cosmos.id, runtimeIdentity.id, managedProfilesScope)
+  properties: {
+    principalId: runtimeIdentity.properties.principalId
+    roleDefinitionId: cosmosDataContributor
+    scope: managedProfilesScope
+  }
+}
+
+resource developerProfilesRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
+  parent: cosmos
+  name: guid(cosmos.id, developerPrincipalId, managedProfilesScope)
+  properties: {
+    principalId: developerPrincipalId
+    roleDefinitionId: cosmosDataContributor
+    scope: managedProfilesScope
   }
 }
 
@@ -322,6 +360,7 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
   dependsOn: [
     hostRuntimeRole
     runtimeCosmosRole
+    runtimeProfilesRole
     telemetryRole
   ]
 }

@@ -90,6 +90,14 @@ h1 span { color: #e59a4c; }
 .field input:focus-visible { outline: 3px solid #e59a4c; outline-offset: 2px; }
 .field input[aria-invalid="true"] { border-color: #a64e35; }
 .field-error { color: #873e26; font-size: .85rem; }
+.profile-list { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.profile-list li + li { border-top: 1px solid #e6eae3; }
+.profile-link { display: flex; justify-content: space-between; width: 100%; padding: 1rem 0; border: 0; background: transparent; color: #315b43; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.profile-link:hover { text-decoration: underline; }
+.profile-actions { margin-top: 1.5rem; }
+.profile-delete { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e6eae3; }
+.button-danger { background: #9c3d2c; }
+.button-danger:hover { background: #7d3023; }
 .secondary { background: #476b5d; }
 .notice { padding: 1rem; border-radius: .75rem; background: #fff0e9; color: #873e26; }
 .footer { padding-block: 3rem; background: #263f32; color: white; }
