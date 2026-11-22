@@ -1,6 +1,6 @@
-# Khata
+# MoneySprout
 
-Khata is a starter portal for parents to manage their children's ledgers;
+MoneySprout (the Khata codebase) is a starter portal for parents to manage their children's ledgers;
 children do not access the portal directly. Google sign-in and server-side
 sessions use Cosmos DB. Balances, investments, and gig jobs are **not
 implemented**. Anonymous `GET /api/health` is a liveness check and does not

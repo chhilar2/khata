@@ -109,18 +109,25 @@ function App() {
 
   return (
     <div className="page">
-      <header className="site-header">
-        <a className="brand" href="/">khata<span>.</span></a>
-        <span className="header-note">Little steps. Big possibilities.</span>
+      <header className="site-header wrap">
+        <a className="brand" href="/"><span className="brand-icon" aria-hidden="true">🌱</span> MoneySprout</a>
+        {!isPortal && (
+          <nav className="nav-links" aria-label="Main navigation">
+            <a href="#ideas">The big ideas</a>
+            <a href="#how">How it works</a>
+            <a href="#parents">For parents</a>
+          </nav>
+        )}
+        {!isPortal && <a className="button nav-button" href={session ? '/portal' : '#signin'}>{session ? 'Your portal' : 'Parent sign in'}</a>}
       </header>
       <main>
-        {error && <p className="notice" role="alert">{error}</p>}
+        {error && <p className="notice wrap" role="alert">{error}</p>}
         {isPortal ? (
-          <section className="hero">
+          <section className="portal wrap">
             {loading ? <p>Checking your session...</p> : session ? (
               <>
                 <p className="eyebrow">YOUR PORTAL</p>
-                <h1>Welcome to Khata.</h1>
+                <h1>Welcome to MoneySprout.</h1>
                 <p className="intro">Your space to manage a ledger for your kids is ready. More features are coming soon.</p>
                 <button className="button secondary" onClick={signOut} disabled={signingOut}>
                   {signingOut ? 'Signing out...' : 'Sign out'}
@@ -130,28 +137,89 @@ function App() {
           </section>
         ) : (
           <>
-            <section className="hero">
-              <p className="eyebrow">A BRIGHTER START WITH MONEY</p>
-              <h1>Small savings.<br /><span>Big dreams.</span></h1>
-              <p className="intro">Khata is a place for parents to manage a ledger for their kids and keep track of their goals and earnings.</p>
-              {loading ? <p>Checking your session...</p> : session ? (
-                <a className="button" href="/portal">Go to your portal <span aria-hidden="true">→</span></a>
-              ) : !googleReady && (
-                <button className="button" onClick={prepareLogin} disabled={preparingLogin}>
-                  {preparingLogin ? 'Preparing sign-in...' : 'Continue with Google'}
-                </button>
-              )}
-              <div ref={googleButton} />
+            <section className="hero wrap" id="signin">
+              <div className="hero-copy">
+                <p className="eyebrow">✦ &nbsp; A smarter start to money</p>
+                <h1>Little steps.<br />Big <span>money</span><br />confidence.</h1>
+                <p className="intro">Money skills grow with practice. MoneySprout is a place for parents to guide their kids through saving, goals, and everyday money moments.</p>
+                <div className="actions">
+                  {loading ? <p className="session-status">Checking your session...</p> : session ? (
+                    <a className="button" href="/portal">Go to your portal <span aria-hidden="true">→</span></a>
+                  ) : !googleReady && (
+                    <button className="button" onClick={prepareLogin} disabled={preparingLogin}>
+                      {preparingLogin ? 'Preparing sign-in...' : 'Continue with Google'}
+                    </button>
+                  )}
+                  <div ref={googleButton} />
+                  <a className="button button-outline" href="#how">See how it works</a>
+                </div>
+                <p className="trust"><span aria-hidden="true">🌿</span> Designed for families. Managed by parents.</p>
+              </div>
+              <div className="hero-art" aria-hidden="true">
+                <div className="arch" />
+                <span className="sun">☀️</span>
+                <span className="plant">🪴</span>
+                <span className="book">📚</span>
+                <span className="pig">🐷</span>
+                <span className="car">🚗</span>
+                <span className="coin">$</span>
+                <div className="float float-goal">🎯 Savings goals<strong>Dream big!</strong></div>
+                <div className="float float-learning">💡 Money moments<strong>Learn together</strong></div>
+                <div className="float float-habits">✨ Small habits, big wins</div>
+              </div>
             </section>
-            <section className="features" aria-label="What Khata is about">
-              <article><span>01</span><h2>Dream it</h2><p>Make room for the things worth saving for.</p></article>
-              <article><span>02</span><h2>Earn it</h2><p>Discover how effort can help dreams grow.</p></article>
-              <article><span>03</span><h2>Grow it</h2><p>Build thoughtful money habits, one step at a time.</p></article>
+
+            <section className="section wrap center" id="ideas">
+              <h2>Money is more than math.</h2>
+              <p className="section-intro">It is about choices, confidence, and discovering what matters. Small money moments can become lessons that last.</p>
+              <div className="cards">
+                <article className="card"><span className="card-icon" aria-hidden="true">📖</span><h3>Learn</h3><p>Talk about money basics and the choices we make every day.</p></article>
+                <article className="card"><span className="card-icon" aria-hidden="true">🐷</span><h3>Save</h3><p>Build the habit of setting money aside for something special.</p></article>
+                <article className="card"><span className="card-icon" aria-hidden="true">🛍️</span><h3>Choose</h3><p>Explore needs, wants, and thoughtful spending together.</p></article>
+                <article className="card"><span className="card-icon" aria-hidden="true">🚀</span><h3>Achieve</h3><p>Turn small steps into progress worth celebrating.</p></article>
+              </div>
             </section>
-            <p className="footnote">Balances, investments, and gig jobs are coming soon.</p>
+
+            <section className="section section-pale" id="how">
+              <div className="wrap center">
+                <h2>One family. One journey.</h2>
+                <p className="section-intro">A little guidance today can help good habits take root tomorrow.</p>
+                <div className="steps">
+                  <article className="step"><span>01</span><h3>Parents lead the way</h3><p>Sign in to your parent portal, the home for your family's money journey.</p></article>
+                  <article className="step"><span>02</span><h3>Dream together</h3><p>Talk with your kids about the things they want to save for and why they matter.</p></article>
+                  <article className="step"><span>03</span><h3>Watch habits grow</h3><p>Celebrate progress and use everyday moments to talk about money.</p></article>
+                </div>
+                <p className="availability">The parent portal is available now. Ledgers, balances, and goals are coming soon.</p>
+              </div>
+            </section>
+
+            <section className="section wrap" id="parents">
+              <div className="parents">
+                <div>
+                  <p className="eyebrow eyebrow-dark">Made for parents</p>
+                  <h2>Grow money confidence, together.</h2>
+                  <p>Every family's journey starts with a parent. MoneySprout is being built to help you keep track of your kids' ledgers and encourage thoughtful money habits.</p>
+                  <a className="button button-light" href={session ? '/portal' : '#signin'}>{session ? 'Go to your portal' : 'Get started'} <span aria-hidden="true">→</span></a>
+                </div>
+                <div className="parent-ideas">
+                  <div><span aria-hidden="true">🌱</span><p><strong>Parent-led</strong><br />A space for parents to manage their children's ledgers.</p></div>
+                  <div><span aria-hidden="true">🎯</span><p><strong>Goals worth sharing</strong><br />Make room for conversations about saving and dreaming.</p></div>
+                  <div><span aria-hidden="true">✨</span><p><strong>Little steps</strong><br />Celebrate the small wins along the way.</p></div>
+                </div>
+              </div>
+            </section>
           </>
         )}
       </main>
+      <footer className="footer">
+        <div className="wrap footer-inner">
+          <div>
+            <a className="brand footer-brand" href="/"><span className="brand-icon" aria-hidden="true">🌱</span> MoneySprout</a>
+            <p>Helping families grow a healthy relationship with money, one small step at a time.</p>
+          </div>
+          {!isPortal && <a href="#signin">Back to top ↑</a>}
+        </div>
+      </footer>
     </div>
   );
 }
