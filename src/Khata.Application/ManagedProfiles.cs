@@ -4,11 +4,11 @@ namespace Khata.Application;
 
 public record ManagedProfileFields(string? DisplayName, string? DateOfBirth);
 public record ManagedProfile(string Id, string DisplayName, string? DateOfBirth,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string Version);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string Version, bool DeletionPending = false);
 public record ManagedProfilePage(IReadOnlyList<ManagedProfile> Items, string? ContinuationToken);
 public enum ProfileCreateStatus { Created, Replayed, Conflict, Gone }
 public record ProfileCreateResult(ProfileCreateStatus Status, ManagedProfile? Profile);
-public enum ProfileWriteStatus { Updated, Deleted, Conflict, Missing }
+public enum ProfileWriteStatus { Updated, Deleted, DeletionPending, Conflict, Missing }
 public record ProfileWriteResult(ProfileWriteStatus Status, ManagedProfile? Profile = null);
 
 public interface IManagedProfileStore

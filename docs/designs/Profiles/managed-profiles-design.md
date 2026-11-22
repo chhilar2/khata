@@ -38,7 +38,7 @@ generated, and never an authorization mechanism.
 | `GET /api/managed-profiles` | Return `{items, continuationToken}` for the current owner; pass the token back to fetch the next page. |
 | `GET /api/managed-profiles/{profileId}` | Return one owned profile and its version. |
 | `PUT /api/managed-profiles/{profileId}` | Replace editable fields; require `If-Match` with the version. Return the updated profile and version. |
-| `DELETE /api/managed-profiles/{profileId}` | Permanently delete after confirmation; require `If-Match`. Return `204` when complete. |
+| `DELETE /api/managed-profiles/{profileId}` | Permanently delete after confirmation; require `If-Match`. Return `204` when complete. Clients sending `Prefer: respond-async` can receive `202` with the pending profile and its latest version, then retry. |
 
 Use field-level `400` errors for invalid input, `401` for missing or expired
 sessions, `403` for failed origin/CSRF checks, `404` for missing or non-owned
@@ -60,22 +60,20 @@ updates and deletes. The existing authentication container remains unchanged.
 Provision the container and scoped runtime/developer data-plane permissions
 in Bicep; local debugging uses the same development resources.
 
-Create the profile and an idempotency receipt atomically within the owner's
-partition. Scope the key to the owner, retain the receipt for 24 hours, and
-store only the profile ID and a request fingerprint. A retry with the same input
-returns `200` with the current profile and version; different input returns
-`409`. If the profile was deleted, return `410` rather than recreate it. The
-receipt survives deletion only until its 24-hour expiry to recognize retries;
-it contains no profile fields, but its fingerprint is potentially personal
-data. Enable per-item TTL for receipts.
+Create the profile, its empty balance and an idempotency receipt atomically
+within the owner's partition. Scope the key to the owner; retain the receipt
+for up to 24 hours and store only the profile ID and a request fingerprint.
+A retry with the same input returns `200` with the current profile and version;
+different input returns `409`. Deletion removes the creation receipt together
+with the profile, so a later retry can create a new profile. Its fingerprint
+is potentially personal data. Enable per-item TTL for receipts.
 
-Initially there are no associated financial records, so deletion removes the
-profile synchronously. Before any later feature attaches records, it must
-implement reliable, retryable deletion of **all** of that profile's records,
-block new writes during deletion, and report completion only after cleanup.
-The profile API must not silently orphan or retain those records. The future
-instrument designs must specify their own data model, deletion coordination,
-and recovery; do not imply those flows already exist.
+Deletion marks the profile before removing associated documents in bounded,
+retryable batches. Completion is reported only after cleanup. Compatible
+clients may resume pending deletion; clients that do not opt in to `202`
+receive `204` only when complete, or an error if further retries are needed.
+Before enabling financial writes, all such writes must honor the deletion
+guard. See the [balance design](./profile-investments-and-gigs-design.md).
 
 ## Security and verification
 

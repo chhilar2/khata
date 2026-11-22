@@ -157,24 +157,36 @@ export default function ManagedProfilesPage({ session }) {
     setBusy(true);
     setMessage('');
     try {
-      const response = await fetch(`/api/managed-profiles/${selected.id}`, {
-        method: 'DELETE', headers: { 'X-CSRF-Token': session.csrfToken, 'If-Match': selected.version },
-      });
-      if (response.status === 401) {
-        window.location.replace('/');
-        return;
+      let version = selected.version;
+      while (true) {
+        const response = await fetch(`/api/managed-profiles/${selected.id}`, {
+          method: 'DELETE', headers: { 'X-CSRF-Token': session.csrfToken, 'If-Match': version, Prefer: 'respond-async' },
+        });
+        if (response.status === 401) {
+          window.location.replace('/');
+          return;
+        }
+        if (response.status === 409) {
+          setConflict(true);
+          setConfirmDelete(false);
+          setMessage('This profile changed elsewhere. Reload it before deleting.');
+          return;
+        }
+        if (response.status === 404) {
+          setMessage('This profile no longer exists or is unavailable. Return to the list to refresh.');
+          return;
+        }
+        if (response.status === 202) {
+          const pending = await response.json();
+          setSelected(pending);
+          setConfirmDelete(false);
+          setMessage('Deleting this profile and its records...');
+          version = pending.version;
+          continue;
+        }
+        if (response.status !== 204) throw new Error('Unable to delete profile');
+        break;
       }
-      if (response.status === 409) {
-        setConflict(true);
-        setConfirmDelete(false);
-        setMessage('This profile changed elsewhere. Reload it before deleting.');
-        return;
-      }
-      if (response.status === 404) {
-        setMessage('This profile no longer exists or is unavailable. Return to the list to refresh.');
-        return;
-      }
-      if (!response.ok) throw new Error('Unable to delete profile');
       setMode('list');
       setSelected(null);
       setConfirmDelete(false);
@@ -188,7 +200,9 @@ export default function ManagedProfilesPage({ session }) {
         setMessage('Profile deleted, but the list could not be refreshed. Please try again.');
       }
     } catch {
-      setMessage('Unable to confirm deletion. Return to the list to check, or try again.');
+      setConflict(true);
+      setConfirmDelete(false);
+      setMessage('Unable to confirm deletion. Reload the profile to check or continue deletion.');
     } finally {
       setBusy(false);
     }
@@ -227,28 +241,33 @@ export default function ManagedProfilesPage({ session }) {
             <div className="account-fields">
               <div className="field">
                 <label htmlFor="profile-name">Display name</label>
-                <input id="profile-name" value={fields.displayName} maxLength={100} disabled={busy}
+                <input id="profile-name" value={fields.displayName} maxLength={100} disabled={busy || selected?.deletionPending}
                   aria-invalid={Boolean(errors.displayName)} aria-describedby={errors.displayName ? 'profile-name-error' : undefined}
                   onChange={event => setFields(current => ({ ...current, displayName: event.target.value }))} />
                 {errors.displayName && <span className="field-error" id="profile-name-error">{errors.displayName}</span>}
               </div>
               <div className="field">
                 <label htmlFor="profile-birthdate">Date of birth (optional)</label>
-                <input id="profile-birthdate" type="date" value={fields.dateOfBirth} max={new Date().toISOString().slice(0, 10)} disabled={busy}
+                <input id="profile-birthdate" type="date" value={fields.dateOfBirth} max={new Date().toISOString().slice(0, 10)} disabled={busy || selected?.deletionPending}
                   aria-invalid={Boolean(errors.dateOfBirth)} aria-describedby={errors.dateOfBirth ? 'profile-birthdate-error' : undefined}
                   onChange={event => setFields(current => ({ ...current, dateOfBirth: event.target.value }))} />
                 {errors.dateOfBirth && <span className="field-error" id="profile-birthdate-error">{errors.dateOfBirth}</span>}
               </div>
             </div>
             <div className="actions profile-actions">
-              <button className="button" type="submit" disabled={busy || conflict}>{busy ? 'Saving...' : 'Save profile'}</button>
+              <button className="button" type="submit" disabled={busy || conflict || selected?.deletionPending}>{busy ? 'Working...' : 'Save profile'}</button>
               <button className="button button-outline" type="button" disabled={busy} onClick={returnToList}>Back to profiles</button>
               {conflict && <button className="button button-outline" type="button" disabled={busy} onClick={() => openProfile(selected.id)}>Reload latest profile</button>}
             </div>
           </form>
           {mode === 'edit' && (
             <div className="profile-delete">
-              {!confirmDelete ? (
+              {selected.deletionPending ? (
+                <>
+                  <p>Deletion is in progress. Resume it to remove this profile and all its records.</p>
+                  <button className="button button-danger" type="button" disabled={busy || conflict} onClick={remove}>Continue deletion</button>
+                </>
+              ) : !confirmDelete ? (
                 <button className="button button-outline" type="button" disabled={busy || conflict} onClick={() => setConfirmDelete(true)}>Delete profile</button>
               ) : (
                 <>

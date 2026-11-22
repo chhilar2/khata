@@ -42,6 +42,12 @@ available during transitions and configure the HTML entry point to revalidate.
 Roll back by redeploying both prior artifacts when necessary. Rollback does not
 undo Cosmos data changes; use separately reviewed, compatible migrations.
 
+Financial writes remain disabled by default while the balance feature is
+incomplete. Before enabling them, block profile and financial writes, drain
+all API versions that do not honor the profile-deletion guard, deploy and
+verify the compatible API, then enable the feature and restore writes.
+Do not roll back to an API that bypasses the guard after financial records exist.
+
 ## Security and verification
 
 Disable API-route caching and verify redirects and multiple session cookies

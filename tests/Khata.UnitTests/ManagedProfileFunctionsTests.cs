@@ -123,6 +123,37 @@ public class ManagedProfileFunctionsTests
         store.Verify(s => s.DeleteAsync("user-two", ProfileId, "\"v1\"", It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task DeleteCompletesPendingCleanupForLegacyClients()
+    {
+        var (functions, store) = CreateFunctions();
+        store.Setup(s => s.DeleteAsync("user-one", ProfileId, "\"v1\"", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProfileWriteResult(ProfileWriteStatus.DeletionPending, Profile with { Version = "\"v2\"", DeletionPending = true }));
+        store.Setup(s => s.DeleteAsync("user-one", ProfileId, "\"v2\"", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProfileWriteResult(ProfileWriteStatus.Deleted));
+
+        var response = await functions.Delete(Request(), ProfileId, default);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        store.Verify(s => s.DeleteAsync("user-one", ProfileId, "\"v2\"", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteCanReturnPendingStatusToCompatibleClients()
+    {
+        var (functions, store) = CreateFunctions();
+        store.Setup(s => s.DeleteAsync("user-one", ProfileId, "\"v1\"", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProfileWriteResult(ProfileWriteStatus.DeletionPending, Profile with { Version = "\"v2\"", DeletionPending = true }));
+
+        var response = await functions.Delete(Request(prefer: "respond-async"), ProfileId, default);
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        response.Body.Position = 0;
+        using var json = await JsonDocument.ParseAsync(response.Body);
+        Assert.True(json.RootElement.GetProperty("deletionPending").GetBoolean());
+        Assert.Equal("\"v2\"", json.RootElement.GetProperty("version").GetString());
+    }
+
     private static (ManagedProfileFunctions, Mock<IManagedProfileStore>) CreateFunctions()
     {
         var authStore = new Mock<IAuthenticationStore>();
@@ -135,8 +166,8 @@ public class ManagedProfileFunctionsTests
         return (new ManagedProfileFunctions(authentication, profiles.Object, Settings, TimeProvider.System), profiles);
     }
 
-    private static HttpRequestData Request(string body = Body, string? token = Token, string origin = "https://app.example",
-        string? csrf = null, string requestId = RequestId, string version = "\"v1\"", string query = "")
+    internal static HttpRequestData Request(string body = Body, string? token = Token, string origin = "https://app.example",
+        string? csrf = null, string requestId = RequestId, string version = "\"v1\"", string query = "", string? prefer = null)
     {
         var services = new ServiceCollection()
             .Configure<WorkerOptions>(options => options.Serializer = new JsonObjectSerializer())
@@ -157,6 +188,7 @@ public class ManagedProfileFunctionsTests
         headers.Add("X-CSRF-Token", csrf ?? AuthenticationService.CsrfToken(token ?? Token));
         headers.Add("Idempotency-Key", requestId);
         headers.Add("If-Match", version);
+        if (prefer is not null) headers.Add("Prefer", prefer);
         request.SetupGet(r => r.Headers).Returns(headers);
         request.SetupGet(r => r.Body).Returns(new MemoryStream(Encoding.UTF8.GetBytes(body)));
         return request.Object;

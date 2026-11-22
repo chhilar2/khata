@@ -8,6 +8,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Document = Khata.Infrastructure.CosmosManagedProfileStore.Document;
 using Receipt = Khata.Infrastructure.CosmosManagedProfileStore.Receipt;
+using Balance = Khata.Infrastructure.CosmosManagedProfileStore.BalanceDocument;
+using Child = Khata.Infrastructure.CosmosManagedProfileStore.ProfileChild;
 
 namespace Khata.UnitTests;
 
@@ -23,10 +25,13 @@ public class CosmosManagedProfileStoreTests
         var (container, batch, response) = Batch(HttpStatusCode.OK);
         Receipt? receipt = null;
         Document? document = null;
+        Balance? balance = null;
         batch.Setup(b => b.CreateItem(It.IsAny<Receipt>(), It.IsAny<TransactionalBatchItemRequestOptions>()))
             .Callback<Receipt, TransactionalBatchItemRequestOptions>((item, _) => receipt = item).Returns(batch.Object);
         batch.Setup(b => b.CreateItem(It.IsAny<Document>(), It.IsAny<TransactionalBatchItemRequestOptions>()))
             .Callback<Document, TransactionalBatchItemRequestOptions>((item, _) => document = item).Returns(batch.Object);
+        batch.Setup(b => b.CreateItem(It.IsAny<Balance>(), It.IsAny<TransactionalBatchItemRequestOptions>()))
+            .Callback<Balance, TransactionalBatchItemRequestOptions>((item, _) => balance = item).Returns(batch.Object);
         var operation = new Mock<TransactionalBatchOperationResult>();
         operation.SetupGet(o => o.ETag).Returns("\"v1\"");
         response.Setup(r => r[1]).Returns(operation.Object);
@@ -37,7 +42,10 @@ public class CosmosManagedProfileStoreTests
         Assert.Equal(ProfileCreateStatus.Created, result.Status);
         Assert.NotNull(document);
         Assert.NotNull(receipt);
+        Assert.NotNull(balance);
         Assert.Equal(document.Id, receipt.ProfileId);
+        Assert.Equal(document.Id, balance.ProfileId);
+        Assert.Equal(document.BalanceId, balance.Id);
         Assert.Equal("owner", document.OwnerId);
         Assert.Equal("owner", receipt.OwnerId);
         Assert.Equal(86400, receipt.Ttl);
@@ -135,13 +143,82 @@ public class CosmosManagedProfileStoreTests
         container.Setup(c => c.ReplaceItemAsync(It.IsAny<Document>(), ProfileId, new PartitionKey("owner"),
                 It.Is<ItemRequestOptions>(o => o.IfMatchEtag == "\"stale\""), It.IsAny<CancellationToken>()))
             .ThrowsAsync(Error(HttpStatusCode.PreconditionFailed));
-        container.Setup(c => c.DeleteItemAsync<Document>(ProfileId, new PartitionKey("other-owner"),
-                It.Is<ItemRequestOptions>(o => o.IfMatchEtag == "\"v1\""), It.IsAny<CancellationToken>()))
+        container.Setup(c => c.ReadItemAsync<Document>(ProfileId, new PartitionKey("other-owner"),
+                It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(Error(HttpStatusCode.NotFound));
         var store = new CosmosManagedProfileStore(container.Object, TimeProvider.System);
 
         Assert.Equal(ProfileWriteStatus.Conflict, (await store.UpdateAsync("owner", ProfileId, Fields, "\"stale\"", default)).Status);
         Assert.Equal(ProfileWriteStatus.Missing, (await store.DeleteAsync("other-owner", ProfileId, "\"v1\"", default)).Status);
+    }
+
+    [Fact]
+    public async Task DeleteMarksProfileAndRemovesChildrenWithAConditionalBatch()
+    {
+        var (container, batch, response) = Batch(HttpStatusCode.OK);
+        var profile = Profile();
+        container.Setup(c => c.ReadItemAsync<Document>(ProfileId, new PartitionKey("owner"),
+                It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Item(profile, "\"v1\""));
+        container.Setup(c => c.ReplaceItemAsync(profile, ProfileId, new PartitionKey("owner"),
+                It.Is<ItemRequestOptions>(o => o.IfMatchEtag == "\"v1\""), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Item(profile, "\"marked\""));
+        var iterator = Children("balance-id");
+        container.Setup(c => c.GetItemQueryIterator<Child>(It.IsAny<QueryDefinition>(), null,
+                It.Is<QueryRequestOptions>(o => o.PartitionKey == new PartitionKey("owner") && o.MaxItemCount == 50)))
+            .Returns(iterator.Object);
+        batch.Setup(b => b.ReplaceItem(ProfileId, profile,
+                It.Is<TransactionalBatchItemRequestOptions>(o => o.IfMatchEtag == "\"marked\"")))
+            .Returns(batch.Object);
+        batch.Setup(b => b.DeleteItem("balance-id", It.IsAny<TransactionalBatchItemRequestOptions>())).Returns(batch.Object);
+        var operation = new Mock<TransactionalBatchOperationResult>();
+        operation.SetupGet(o => o.ETag).Returns("\"pending\"");
+        response.Setup(r => r[0]).Returns(operation.Object);
+
+        var result = await new CosmosManagedProfileStore(container.Object, TimeProvider.System)
+            .DeleteAsync("owner", ProfileId, "\"v1\"", default);
+
+        Assert.Equal(ProfileWriteStatus.DeletionPending, result.Status);
+        Assert.True(result.Profile!.DeletionPending);
+        Assert.Equal("\"pending\"", result.Profile.Version);
+        batch.Verify(b => b.DeleteItem("balance-id", It.IsAny<TransactionalBatchItemRequestOptions>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteRemovesCreationReceiptAndProfileInOneBatch()
+    {
+        var (container, batch, _) = Batch(HttpStatusCode.OK);
+        var profile = Profile();
+        profile.Deleting = true;
+        container.Setup(c => c.ReadItemAsync<Document>(ProfileId, new PartitionKey("owner"),
+                It.IsAny<ItemRequestOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Item(profile, "\"pending\""));
+        container.SetupSequence(c => c.GetItemQueryIterator<Child>(It.IsAny<QueryDefinition>(), null,
+                It.IsAny<QueryRequestOptions>()))
+            .Returns(Children().Object)
+            .Returns(Children("request-id").Object);
+        batch.Setup(b => b.DeleteItem("request-id", It.IsAny<TransactionalBatchItemRequestOptions>()))
+            .Returns(batch.Object);
+        batch.Setup(b => b.DeleteItem(ProfileId, It.Is<TransactionalBatchItemRequestOptions>(o => o.IfMatchEtag == "\"pending\"")))
+            .Returns(batch.Object);
+
+        var result = await new CosmosManagedProfileStore(container.Object, TimeProvider.System)
+            .DeleteAsync("owner", ProfileId, "\"pending\"", default);
+
+        Assert.Equal(ProfileWriteStatus.Deleted, result.Status);
+        batch.Verify(b => b.DeleteItem("request-id", It.IsAny<TransactionalBatchItemRequestOptions>()), Times.Once);
+        batch.Verify(b => b.DeleteItem(ProfileId, It.Is<TransactionalBatchItemRequestOptions>(o => o.IfMatchEtag == "\"pending\"")), Times.Once);
+    }
+
+    private static Mock<FeedIterator<Child>> Children(params string[] ids)
+    {
+        var iterator = new Mock<FeedIterator<Child>>();
+        var feed = new Mock<FeedResponse<Child>>();
+        var children = ids.Select(id => new Child { Id = id }).ToArray();
+        feed.Setup(f => f.GetEnumerator()).Returns(() => ((IEnumerable<Child>)children).GetEnumerator());
+        iterator.SetupSequence(i => i.HasMoreResults).Returns(true).Returns(false);
+        iterator.Setup(i => i.ReadNextAsync(It.IsAny<CancellationToken>())).ReturnsAsync(feed.Object);
+        return iterator;
     }
 
     private static (Mock<Container>, Mock<TransactionalBatch>, Mock<TransactionalBatchResponse>) Batch(HttpStatusCode status)
@@ -152,6 +229,7 @@ public class CosmosManagedProfileStoreTests
         container.Setup(c => c.CreateTransactionalBatch(new PartitionKey("owner"))).Returns(batch.Object);
         batch.Setup(b => b.CreateItem(It.IsAny<Receipt>(), It.IsAny<TransactionalBatchItemRequestOptions>())).Returns(batch.Object);
         batch.Setup(b => b.CreateItem(It.IsAny<Document>(), It.IsAny<TransactionalBatchItemRequestOptions>())).Returns(batch.Object);
+        batch.Setup(b => b.CreateItem(It.IsAny<Balance>(), It.IsAny<TransactionalBatchItemRequestOptions>())).Returns(batch.Object);
         batch.Setup(b => b.ExecuteAsync(It.IsAny<CancellationToken>())).ReturnsAsync(response.Object);
         response.SetupGet(r => r.StatusCode).Returns(status);
         response.SetupGet(r => r.IsSuccessStatusCode).Returns(status == HttpStatusCode.OK);

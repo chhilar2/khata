@@ -3,8 +3,9 @@
 MoneySprout (the Khata codebase) is a starter portal for parents to manage their children's ledgers;
 children do not access the portal directly. Google sign-in and server-side
 sessions use Cosmos DB. Account holders can manage profiles for themselves
-or dependents; only the creator can access a profile. Balances, investments, and gig jobs are **not
-implemented**. Anonymous `GET /api/health` is a liveness check and does not
+or dependents; only the creator can access a profile. Balance and ledger APIs
+are in progress, with financial writes disabled by default; investments, gig
+jobs and their profile page are **not implemented**. Anonymous `GET /api/health` is a liveness check and does not
 check authentication or the database.
 
 ## Structure
@@ -139,7 +140,8 @@ initialize a missing profile. Profile details are stored in the same Cosmos
 container as authentication records.
 Managed profiles use a separate `managed-profiles` container, partitioned by
 account-holder ID. The creator can add, edit, and permanently delete profiles;
-sharing is not supported. Profile creation retains a retry receipt for 24 hours.
+sharing is not supported. Profile creation retains a retry receipt for up to
+24 hours, unless the profile is deleted first.
 The portal is intended for parents, but sign-in permits any Google account
 that Google allows for the OAuth client; parent status is not verified.
 Assess privacy and security requirements for children's ledger data before

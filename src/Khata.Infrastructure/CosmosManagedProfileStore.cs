@@ -14,10 +14,29 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
         public required string Kind { get; set; }
         public string? DisplayName { get; set; }
         public string? DateOfBirth { get; set; }
+        public string? BalanceId { get; set; }
+        public bool Deleting { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
         [JsonProperty("_etag", NullValueHandling = NullValueHandling.Ignore)]
         public string? ETag { get; set; }
+    }
+
+    internal sealed class BalanceDocument
+    {
+        public required string Id { get; set; }
+        public required string OwnerId { get; set; }
+        public required string ProfileId { get; set; }
+        public string Kind { get; set; } = "balance";
+        public string? Currency { get; set; }
+        public long CashCents { get; set; }
+        [JsonProperty("_etag", NullValueHandling = NullValueHandling.Ignore)]
+        public string? ETag { get; set; }
+    }
+
+    internal sealed class ProfileChild
+    {
+        public required string Id { get; set; }
     }
 
     internal sealed class Receipt
@@ -38,8 +57,9 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
         {
             Id = Guid.NewGuid().ToString("N"), OwnerId = ownerId, Kind = "managed-profile",
             DisplayName = fields.DisplayName, DateOfBirth = fields.DateOfBirth,
-            CreatedAt = now, UpdatedAt = now
+            CreatedAt = now, UpdatedAt = now, BalanceId = Guid.NewGuid().ToString("N")
         };
+        var balance = new BalanceDocument { Id = doc.BalanceId, OwnerId = ownerId, ProfileId = doc.Id };
         var fingerprint = AuthenticationService.Hash(System.Text.Json.JsonSerializer.Serialize(fields));
         var receipt = new Receipt
         {
@@ -47,7 +67,7 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
             ProfileId = doc.Id, Fingerprint = fingerprint, Ttl = 86400
         };
         using var batch = await container.CreateTransactionalBatch(partition)
-            .CreateItem(receipt).CreateItem(doc).ExecuteAsync(cancellationToken);
+            .CreateItem(receipt).CreateItem(doc).CreateItem(balance).ExecuteAsync(cancellationToken);
         if (batch.IsSuccessStatusCode)
             return new ProfileCreateResult(ProfileCreateStatus.Created, ToProfile(doc, batch[1].ETag));
         if (batch.StatusCode != HttpStatusCode.Conflict)
@@ -116,6 +136,8 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
             var current = await container.ReadItemAsync<Document>(id, partition, cancellationToken: cancellationToken);
             Validate(current.Resource, ownerId);
             var doc = current.Resource;
+            if (doc.Deleting)
+                return new ProfileWriteResult(ProfileWriteStatus.Conflict);
             doc.DisplayName = fields.DisplayName;
             doc.DateOfBirth = fields.DateOfBirth;
             doc.UpdatedAt = clock.GetUtcNow();
@@ -138,8 +160,74 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
     {
         try
         {
-            await container.DeleteItemAsync<Document>(id, new PartitionKey(ownerId),
-                new ItemRequestOptions { IfMatchEtag = version }, cancellationToken);
+            var partition = new PartitionKey(ownerId);
+            var current = await container.ReadItemAsync<Document>(id, partition, cancellationToken: cancellationToken);
+            Validate(current.Resource, ownerId);
+            if (current.ETag != version)
+                return new ProfileWriteResult(ProfileWriteStatus.Conflict);
+
+            var doc = current.Resource;
+            if (!doc.Deleting)
+            {
+                doc.Deleting = true;
+                doc.UpdatedAt = clock.GetUtcNow();
+                doc.ETag = null;
+                var marked = await container.ReplaceItemAsync(doc, id, partition,
+                    new ItemRequestOptions { IfMatchEtag = version }, cancellationToken);
+                version = marked.ETag;
+            }
+
+            var query = new QueryDefinition("SELECT c.id FROM c WHERE c.profileId = @profileId AND c.kind != @receiptKind")
+                .WithParameter("@receiptKind", "create-receipt")
+                .WithParameter("@profileId", id);
+            using var iterator = container.GetItemQueryIterator<ProfileChild>(query, requestOptions:
+                new QueryRequestOptions { PartitionKey = partition, MaxItemCount = 50 });
+            while (iterator.HasMoreResults)
+            {
+                var children = await iterator.ReadNextAsync(cancellationToken);
+                if (!children.Any())
+                    continue;
+                doc.ETag = null;
+                var batch = container.CreateTransactionalBatch(partition)
+                    .ReplaceItem(id, doc, new TransactionalBatchItemRequestOptions { IfMatchEtag = version });
+                foreach (var child in children)
+                    batch.DeleteItem(child.Id);
+                using var result = await batch.ExecuteAsync(cancellationToken);
+                if (result.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
+                    return new ProfileWriteResult(ProfileWriteStatus.Conflict);
+                if (!result.IsSuccessStatusCode)
+                    throw new InvalidOperationException($"Profile cleanup failed with Cosmos status {(int)result.StatusCode}.");
+                return new ProfileWriteResult(ProfileWriteStatus.DeletionPending, ToProfile(doc, result[0].ETag));
+            }
+
+            var receiptQuery = new QueryDefinition("SELECT c.id FROM c WHERE c.profileId = @profileId AND c.kind = @receiptKind")
+                .WithParameter("@profileId", id).WithParameter("@receiptKind", "create-receipt");
+            using var receipts = container.GetItemQueryIterator<ProfileChild>(receiptQuery, requestOptions:
+                new QueryRequestOptions { PartitionKey = partition, MaxItemCount = 2 });
+            var receiptIds = new List<string>();
+            while (receipts.HasMoreResults)
+            {
+                var page = await receipts.ReadNextAsync(cancellationToken);
+                receiptIds.AddRange(page.Select(receipt => receipt.Id));
+                if (receiptIds.Count > 1)
+                    throw new InvalidOperationException("The profile has multiple creation receipts.");
+            }
+            if (receiptIds.Count == 0)
+            {
+                await container.DeleteItemAsync<Document>(id, partition,
+                    new ItemRequestOptions { IfMatchEtag = version }, cancellationToken);
+                return new ProfileWriteResult(ProfileWriteStatus.Deleted);
+            }
+            using var finalBatch = await container.CreateTransactionalBatch(partition)
+                .DeleteItem(receiptIds[0])
+                .DeleteItem(id, new TransactionalBatchItemRequestOptions { IfMatchEtag = version })
+                .ExecuteAsync(cancellationToken);
+            if (finalBatch.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
+                return new ProfileWriteResult(ProfileWriteStatus.Conflict);
+            if (finalBatch.StatusCode == HttpStatusCode.NotFound)
+                return new ProfileWriteResult(ProfileWriteStatus.DeletionPending, ToProfile(doc, version));
+            if (!finalBatch.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Profile deletion failed with Cosmos status {(int)finalBatch.StatusCode}.");
             return new ProfileWriteResult(ProfileWriteStatus.Deleted);
         }
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
@@ -161,6 +249,6 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
 
     private static ManagedProfile ToProfile(Document doc, string? version) =>
         !string.IsNullOrEmpty(version) && !string.IsNullOrEmpty(doc.DisplayName)
-            ? new ManagedProfile(doc.Id, doc.DisplayName, doc.DateOfBirth, doc.CreatedAt, doc.UpdatedAt, version)
+            ? new ManagedProfile(doc.Id, doc.DisplayName, doc.DateOfBirth, doc.CreatedAt, doc.UpdatedAt, version, doc.Deleting)
             : throw new InvalidOperationException("The stored managed profile is missing required data.");
 }

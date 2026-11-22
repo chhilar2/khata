@@ -110,8 +110,16 @@ public sealed class ManagedProfileFunctions(
         var version = Version(request);
         if (version is null)
             return Response(request, HttpStatusCode.BadRequest);
-        var result = await profiles.DeleteAsync(session.UserId, id, version, cancellationToken);
-        return await WriteResponse(request, result, cancellationToken);
+        var asyncResponse = AuthenticationFunctions.Header(request, "Prefer") == "respond-async";
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await profiles.DeleteAsync(session.UserId, id, version, cancellationToken);
+            if (result.Status != ProfileWriteStatus.DeletionPending || asyncResponse)
+                return await WriteResponse(request, result, cancellationToken);
+            version = result.Profile?.Version ?? throw new InvalidOperationException("The profile deletion result is invalid.");
+        }
+        return await JsonResponse(request, HttpStatusCode.ServiceUnavailable,
+            new { error = "Profile deletion is still in progress. Reload the profile and retry." }, cancellationToken);
     }
 
     private Task<UserSession?> Session(HttpRequestData request, CancellationToken cancellationToken) =>
@@ -170,6 +178,7 @@ public sealed class ManagedProfileFunctions(
         {
             ProfileWriteStatus.Updated when result.Profile is not null => await JsonResponse(request, HttpStatusCode.OK, Format(result.Profile), cancellationToken),
             ProfileWriteStatus.Deleted => Response(request, HttpStatusCode.NoContent),
+            ProfileWriteStatus.DeletionPending when result.Profile is not null => await JsonResponse(request, HttpStatusCode.Accepted, Format(result.Profile), cancellationToken),
             ProfileWriteStatus.Conflict => Response(request, HttpStatusCode.Conflict),
             ProfileWriteStatus.Missing => Response(request, HttpStatusCode.NotFound),
             _ => throw new InvalidOperationException("The profile update result is invalid.")
@@ -185,7 +194,8 @@ public sealed class ManagedProfileFunctions(
     private static object Format(ManagedProfile profile) => new
     {
         id = profile.Id, displayName = profile.DisplayName, dateOfBirth = profile.DateOfBirth,
-        createdAt = profile.CreatedAt, updatedAt = profile.UpdatedAt, version = profile.Version
+        createdAt = profile.CreatedAt, updatedAt = profile.UpdatedAt, version = profile.Version,
+        deletionPending = profile.DeletionPending
     };
 
     private static async Task<HttpResponseData> JsonResponse<T>(HttpRequestData request, HttpStatusCode status, T value, CancellationToken cancellationToken)
