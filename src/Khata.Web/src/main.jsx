@@ -2,6 +2,159 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
+const accountFields = [
+  { name: 'displayName', label: 'Display name', maxLength: 100, autoComplete: 'name' },
+  { name: 'contactEmail', label: 'Contact email', type: 'email', maxLength: 254, autoComplete: 'email' },
+  { name: 'phone', label: 'Phone number', type: 'tel', maxLength: 30, autoComplete: 'tel' },
+  { name: 'country', label: 'Country code', maxLength: 2, autoComplete: 'country', hint: 'Two-letter code, for example US.' },
+  { name: 'currency', label: 'Preferred currency', maxLength: 3, hint: 'Three-letter code, for example USD.' },
+];
+
+function AccountPage({ session, signOut, signingOut }) {
+  const [account, setAccount] = useState(null);
+  const [fields, setFields] = useState({});
+  const [errors, setErrors] = useState({});
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [missing, setMissing] = useState(false);
+  const [conflict, setConflict] = useState(false);
+
+  async function loadAccount(signal) {
+    const response = await fetch('/api/account', { cache: 'no-store', signal });
+    if (response.status === 401) {
+      window.location.replace('/');
+      return;
+    }
+    if (response.status === 404) {
+      setMissing(true);
+      return;
+    }
+    if (!response.ok) throw new Error('Account request failed');
+    const data = await response.json();
+    setAccount(data);
+    setFields(Object.fromEntries(accountFields.map(({ name }) => [name, data[name] ?? ''])));
+    setMissing(false);
+    setConflict(false);
+    setErrors({});
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadAccount(controller.signal)
+      .catch(exception => {
+        if (exception.name !== 'AbortError') setMessage('Unable to load your account. Please try again.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  async function reload() {
+    setLoading(true);
+    setMessage('');
+    try {
+      await loadAccount();
+    } catch {
+      setMessage('Unable to load your account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function save(event) {
+    event.preventDefault();
+    setSaving(true);
+    setErrors({});
+    setMessage('');
+    try {
+      const response = await fetch('/api/account', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrfToken, 'If-Match': account.version },
+        body: JSON.stringify(Object.fromEntries(accountFields.map(({ name }) => [name, fields[name]]))),
+      });
+      if (response.status === 401) {
+        window.location.replace('/');
+        return;
+      }
+      if (response.status === 404) {
+        setMissing(true);
+        return;
+      }
+      if (response.status === 409) {
+        setConflict(true);
+        setMessage('Your account changed elsewhere. Reload the latest information before saving; your unsaved changes will be lost.');
+        return;
+      }
+      if (response.status === 400) {
+        const data = await response.json().catch(() => null);
+        if (data?.errors) {
+          setErrors(data.errors);
+          setMessage('Please check the highlighted fields.');
+          return;
+        }
+      }
+      if (!response.ok) throw new Error('Account update failed');
+      try {
+        await loadAccount();
+        setMessage('Your account has been saved.');
+      } catch {
+        setConflict(true);
+        setMessage('Your account was saved, but the latest version could not be loaded. Reload before editing again.');
+      }
+    } catch {
+      setMessage('Unable to save your account. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="portal wrap account-page">
+      <a className="back-link" href="/portal">← Back to portal</a>
+      <p className="eyebrow">YOUR ACCOUNT</p>
+      <h1>Your details.</h1>
+      <p className="intro">Manage the information you share with MoneySprout. All fields are optional.</p>
+      {message && <p className="notice" role="status">{message}</p>}
+      {loading ? <p>Loading your account...</p> : missing ? (
+        <div className="account-panel">
+          <p>Your account profile needs to be set up. Sign out and sign in again to continue.</p>
+          <button className="button secondary" onClick={signOut} disabled={signingOut}>{signingOut ? 'Signing out...' : 'Sign out'}</button>
+        </div>
+      ) : account ? (
+        <div className="account-panel">
+          <div className="account-signin">
+            <div><span>Sign-in provider</span><strong>{account.provider === 'google' ? 'Google' : account.provider}</strong></div>
+            <div><span>Sign-in email</span><strong>{account.email || 'Not available'}</strong></div>
+          </div>
+          <form onSubmit={save} noValidate>
+            <div className="account-fields">
+              {accountFields.map(({ name, label, type, maxLength, autoComplete, hint }) => (
+                <div className="field" key={name}>
+                  <label htmlFor={name}>{label}</label>
+                  {hint && <span className="field-hint" id={`${name}-hint`}>{hint}</span>}
+                  <input id={name} name={name} type={type || 'text'} maxLength={maxLength}
+                    autoComplete={autoComplete} value={fields[name] ?? ''} disabled={saving}
+                    aria-invalid={Boolean(errors[name])}
+                    aria-describedby={[hint && `${name}-hint`, errors[name] && `${name}-error`].filter(Boolean).join(' ') || undefined}
+                    onChange={event => setFields(current => ({ ...current, [name]: event.target.value }))} />
+                  {errors[name] && <span className="field-error" id={`${name}-error`}>{errors[name]}</span>}
+                </div>
+              ))}
+            </div>
+            <p className="field-hint">Contact email and phone are not verified and are not used to sign in.</p>
+            <div className="actions">
+              <button className="button" type="submit" disabled={saving || conflict}>{saving ? 'Saving...' : 'Save changes'}</button>
+              {conflict && <button className="button button-outline" type="button" onClick={reload}>Reload latest details</button>}
+            </div>
+          </form>
+        </div>
+      ) : <button className="button button-outline" onClick={reload}>Try again</button>}
+    </section>
+  );
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,6 +168,7 @@ function App() {
   const [googleReady, setGoogleReady] = useState(false);
   const googleButton = useRef(null);
   const isPortal = window.location.pathname === '/portal';
+  const isAccount = isPortal && new URLSearchParams(window.location.search).get('view') === 'account';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -122,16 +276,21 @@ function App() {
       </header>
       <main>
         {error && <p className="notice wrap" role="alert">{error}</p>}
-        {isPortal ? (
+        {isAccount && session ? (
+          <AccountPage session={session} signOut={signOut} signingOut={signingOut} />
+        ) : isPortal ? (
           <section className="portal wrap">
             {loading ? <p>Checking your session...</p> : session ? (
               <>
                 <p className="eyebrow">YOUR PORTAL</p>
                 <h1>Welcome to MoneySprout.</h1>
                 <p className="intro">Your space to manage a ledger for your kids is ready. More features are coming soon.</p>
-                <button className="button secondary" onClick={signOut} disabled={signingOut}>
-                  {signingOut ? 'Signing out...' : 'Sign out'}
-                </button>
+                <div className="actions">
+                  <a className="button" href="/portal?view=account">Your account</a>
+                  <button className="button secondary" onClick={signOut} disabled={signingOut}>
+                    {signingOut ? 'Signing out...' : 'Sign out'}
+                  </button>
+                </div>
               </>
             ) : <p>Sign-in is required to access the portal.</p>}
           </section>

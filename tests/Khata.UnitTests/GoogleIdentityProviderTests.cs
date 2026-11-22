@@ -14,6 +14,8 @@ public class GoogleIdentityProviderTests
 {
     [Theory]
     [InlineData("valid", true)]
+    [InlineData("unverified-email", true)]
+    [InlineData("missing-email", true)]
     [InlineData("issuer", false)]
     [InlineData("audience", false)]
     [InlineData("nonce", false)]
@@ -29,8 +31,14 @@ public class GoogleIdentityProviderTests
         var claims = new List<Claim>
         {
             new("sub", "google-subject"),
-            new("nonce", scenario == "nonce" ? "wrong" : "nonce")
+            new("nonce", scenario == "nonce" ? "wrong" : "nonce"),
+            new("name", "Parent")
         };
+        if (scenario != "missing-email")
+        {
+            claims.Add(new Claim("email", "parent@example.com"));
+            claims.Add(new Claim("email_verified", scenario == "unverified-email" ? "false" : "true", ClaimValueTypes.Boolean));
+        }
         if (scenario == "authorized-party") claims.Add(new Claim("azp", "other-client"));
         if (scenario == "multiple-audiences") claims.Add(new Claim("aud", "other-client"));
         var token = new JwtSecurityToken(
@@ -61,8 +69,10 @@ public class GoogleIdentityProviderTests
         if (accepted)
         {
             var identity = await provider.ValidateTokenAsync(jwt, AuthenticationService.Hash("nonce"), default);
-            Assert.Equal("google-subject", identity.Subject);
-            Assert.Equal("https://accounts.google.com", identity.Issuer);
+            Assert.Equal("google-subject", identity.Identity.Subject);
+            Assert.Equal("https://accounts.google.com", identity.Identity.Issuer);
+            Assert.Equal("Parent", identity.DisplayName);
+            Assert.Equal(scenario == "valid" ? "parent@example.com" : null, identity.Email);
         }
         else
         {

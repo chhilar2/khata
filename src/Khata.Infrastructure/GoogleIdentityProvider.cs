@@ -14,7 +14,7 @@ public sealed class GoogleIdentityProvider(string clientId, HttpClient httpClien
         new OpenIdConnectConfigurationRetriever(),
         new HttpDocumentRetriever(httpClient) { RequireHttps = true });
 
-    public async Task<ExternalIdentity> ValidateTokenAsync(string token, string nonceHash, CancellationToken cancellationToken)
+    public async Task<ValidatedIdentity> ValidateTokenAsync(string token, string nonceHash, CancellationToken cancellationToken)
     {
         var metadata = await configuration.GetConfigurationAsync(cancellationToken);
         var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
@@ -39,7 +39,13 @@ public sealed class GoogleIdentityProvider(string clientId, HttpClient httpClien
                 (authorizedParty is not null && authorizedParty != clientId) ||
                 (jwt.Audiences.Count() > 1 && authorizedParty != clientId))
                 throw new SecurityTokenException("The identity token claims are invalid.");
-            return new ExternalIdentity("google", Issuer, subject);
+            var name = principal.FindFirst("name")?.Value;
+            var email = principal.FindFirst("email_verified")?.Value == "true"
+                ? principal.FindFirst("email")?.Value : null;
+            var (profile, errors) = AccountValidation.Validate(new AccountFields(name, email, null, null, null));
+            if (errors.Count != 0)
+                throw new SecurityTokenException("The identity token profile claims are invalid.");
+            return new ValidatedIdentity(new ExternalIdentity("google", Issuer, subject), profile.DisplayName, profile.ContactEmail);
         }
         catch (SecurityTokenSignatureKeyNotFoundException)
         {

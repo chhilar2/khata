@@ -10,7 +10,7 @@ namespace Khata.Api;
 
 public sealed class AuthenticationFunctions(AuthenticationService authentication, AuthSettings settings, ILogger<AuthenticationFunctions> logger)
 {
-    private const string SessionCookie = "__Host-khata-session";
+    internal const string SessionCookie = "__Host-khata-session";
     private const string FlowCookie = "__Host-khata-flow";
 
     [Function("GoogleLoginStart")]
@@ -106,14 +106,17 @@ public sealed class AuthenticationFunctions(AuthenticationService authentication
         return response;
     }
 
-    private static string? Cookie(HttpRequestData request, string name)
+    internal static string? Cookie(HttpRequestData request, string name)
     {
         var values = request.Cookies.Where(cookie => cookie.Name == name).Select(cookie => cookie.Value).Take(2).ToArray();
         return values.Length == 1 ? values[0] : null;
     }
 
-    private static string? Header(HttpRequestData request, string name) =>
-        request.Headers.TryGetValues(name, out var values) ? values.SingleOrDefault() : null;
+    internal static string? Header(HttpRequestData request, string name)
+    {
+        var values = request.Headers.TryGetValues(name, out var headers) ? headers.Take(2).ToArray() : [];
+        return values.Length == 1 ? values[0] : null;
+    }
 
     private static void SetCookie(HttpResponseData response, string name, string value, int maxAge)
     {

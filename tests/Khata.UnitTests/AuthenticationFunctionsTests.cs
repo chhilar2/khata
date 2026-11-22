@@ -117,7 +117,7 @@ public class AuthenticationFunctionsTests
     }
 
     private static AuthenticationFunctions CreateFunctions(IAuthenticationStore store) =>
-        new(new AuthenticationService(store, new Mock<IIdentityProvider>().Object, TimeProvider.System),
+        new(new AuthenticationService(store, new Mock<IIdentityProvider>().Object, new Mock<IAccountStore>().Object, TimeProvider.System),
             Settings, Mock.Of<ILogger<AuthenticationFunctions>>());
 
     private static (Mock<HttpRequestData>, Mock<HttpCookies>) CreateRequest(params IHttpCookie[] requestCookies)

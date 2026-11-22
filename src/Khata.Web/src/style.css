@@ -75,6 +75,21 @@ h1 span { color: #e59a4c; }
 .parent-ideas p { margin: 0; color: #d0dbd1; font-size: .9rem; line-height: 1.6; }
 .parent-ideas strong { color: white; }
 .portal { min-height: 60vh; padding-block: 4rem; }
+.account-page { max-width: 52rem; }
+.back-link { display: block; width: fit-content; margin-bottom: 2rem; color: #315b43; font-weight: 700; }
+.back-link:hover { text-decoration: underline; }
+.account-panel { padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid #e6eae3; border-radius: 1.4rem; background: white; }
+.account-signin { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e6eae3; }
+.account-signin span, .account-signin strong { display: block; overflow-wrap: anywhere; }
+.account-signin span, .field-hint { color: #667168; font-size: .85rem; }
+.account-signin strong { margin-top: .35rem; }
+.account-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; padding-top: 1.5rem; }
+.field { display: grid; gap: .4rem; align-content: start; }
+.field label { font-weight: 700; font-size: .9rem; }
+.field input { width: 100%; padding: .8rem; border: 1px solid #cbd6c9; border-radius: .65rem; background: #fff; color: #24382e; font: inherit; }
+.field input:focus-visible { outline: 3px solid #e59a4c; outline-offset: 2px; }
+.field input[aria-invalid="true"] { border-color: #a64e35; }
+.field-error { color: #873e26; font-size: .85rem; }
 .secondary { background: #476b5d; }
 .notice { padding: 1rem; border-radius: .75rem; background: #fff0e9; color: #873e26; }
 .footer { padding-block: 3rem; background: #263f32; color: white; }
@@ -105,6 +120,7 @@ h1 span { color: #e59a4c; }
   .card { padding: 1.1rem; }
   .card h3 { font-size: 1.05rem; }
   .parents { grid-template-columns: 1fr; padding: 1.5rem; }
+  .account-fields, .account-signin { grid-template-columns: 1fr; }
   .footer-inner { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {

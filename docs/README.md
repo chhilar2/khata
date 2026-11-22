@@ -128,6 +128,13 @@ logout invalidates the Khata session, not the Google session. Identity
 mappings are keyed by provider, issuer and subject, never email. Login flows
 expire after ten minutes. Cookies are `Secure`; use a browser that treats
 HTTP localhost as a secure context, or use HTTPS locally.
+The parent portal's **Your account** page displays the sign-in provider and
+available Google-verified email, and lets parents optionally edit their
+display name, contact email, phone, country and currency. Contact details
+are not verified. Country and currency accept supported ISO two- and
+three-letter codes, respectively. Existing users need to sign in again to
+initialize a missing profile. Profile details are stored in the same Cosmos
+container as authentication records.
 The portal is intended for parents, but sign-in permits any Google account
 that Google allows for the OAuth client; parent status is not verified.
 Assess privacy and security requirements for children's ledger data before

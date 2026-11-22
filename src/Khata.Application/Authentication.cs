@@ -4,6 +4,7 @@ using System.Text;
 namespace Khata.Application;
 
 public record ExternalIdentity(string Provider, string Issuer, string Subject);
+public record ValidatedIdentity(ExternalIdentity Identity, string? DisplayName, string? Email);
 public record LoginFlow(string Id, string BindingHash, string NonceHash, DateTimeOffset ExpiresAt);
 public record UserIdentity(string Id, ExternalIdentity Identity);
 public record UserSession(string Id, string UserId, DateTimeOffset ExpiresAt);
@@ -12,7 +13,7 @@ public record LoginResult(string SessionToken);
 
 public interface IIdentityProvider
 {
-    Task<ExternalIdentity> ValidateTokenAsync(string token, string nonceHash, CancellationToken cancellationToken);
+    Task<ValidatedIdentity> ValidateTokenAsync(string token, string nonceHash, CancellationToken cancellationToken);
 }
 
 public interface IAuthenticationStore
@@ -25,7 +26,7 @@ public interface IAuthenticationStore
     Task DeleteSessionAsync(string id, CancellationToken cancellationToken);
 }
 
-public sealed class AuthenticationService(IAuthenticationStore store, IIdentityProvider provider, TimeProvider clock)
+public sealed class AuthenticationService(IAuthenticationStore store, IIdentityProvider provider, IAccountStore accounts, TimeProvider clock)
 {
     private static readonly TimeSpan FlowLifetime = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(8);
@@ -50,7 +51,8 @@ public sealed class AuthenticationService(IAuthenticationStore store, IIdentityP
             return null;
 
         var identity = await provider.ValidateTokenAsync(credential, flow.NonceHash, cancellationToken);
-        var user = await store.GetOrCreateUserAsync(identity, cancellationToken);
+        var user = await store.GetOrCreateUserAsync(identity.Identity, cancellationToken);
+        await accounts.EnsureProfileAsync(user.Id, identity, cancellationToken);
         if (IsToken(oldSession))
             await store.DeleteSessionAsync(Hash(oldSession!), cancellationToken);
 

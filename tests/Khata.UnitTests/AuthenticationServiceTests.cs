@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Khata.Application;
+using Moq;
 
 namespace Khata.UnitTests;
 
@@ -52,12 +53,37 @@ public class AuthenticationServiceTests
         Assert.Null(await service.GetSessionAsync(second.SessionToken, default));
     }
 
+    [Fact]
+    public async Task ProfileFailureDoesNotIssueOrRevokeSessionAndRetryCanRecover()
+    {
+        var store = new FakeStore();
+        var accounts = new Mock<IAccountStore>();
+        accounts.SetupSequence(a => a.EnsureProfileAsync(It.IsAny<string>(), It.IsAny<ValidatedIdentity>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Storage unavailable"))
+            .Returns(Task.CompletedTask);
+        var service = new AuthenticationService(store, new FakeProvider(), accounts.Object, new FakeClock());
+        var oldToken = new string('a', 43);
+        var oldSession = new UserSession(AuthenticationService.Hash(oldToken), "existing", DateTimeOffset.UtcNow.AddHours(1));
+        store.Sessions[oldSession.Id] = oldSession;
+        var start = await service.StartAsync(default);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CompleteAsync(start.State, start.BrowserBinding, "token", oldToken, default));
+        Assert.Single(store.Sessions);
+        Assert.True(store.Sessions.ContainsKey(oldSession.Id));
+
+        var retry = await service.StartAsync(default);
+        Assert.NotNull(await service.CompleteAsync(retry.State, retry.BrowserBinding, "token", oldToken, default));
+        Assert.Single(store.Sessions);
+        accounts.Verify(a => a.EnsureProfileAsync(It.IsAny<string>(), It.IsAny<ValidatedIdentity>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
     private static (AuthenticationService, FakeStore, FakeProvider, FakeClock) CreateService()
     {
         var store = new FakeStore();
         var provider = new FakeProvider();
         var clock = new FakeClock();
-        return (new AuthenticationService(store, provider, clock), store, provider, clock);
+        return (new AuthenticationService(store, provider, new FakeAccounts(), clock), store, provider, clock);
     }
 
     private sealed class FakeClock : TimeProvider
@@ -69,8 +95,15 @@ public class AuthenticationServiceTests
 
     private sealed class FakeProvider : IIdentityProvider
     {
-        public Task<ExternalIdentity> ValidateTokenAsync(string token, string nonceHash, CancellationToken cancellationToken) =>
-            Task.FromResult(new ExternalIdentity("google", "https://accounts.google.com", "subject"));
+        public Task<ValidatedIdentity> ValidateTokenAsync(string token, string nonceHash, CancellationToken cancellationToken) =>
+            Task.FromResult(new ValidatedIdentity(new ExternalIdentity("google", "https://accounts.google.com", "subject"), null, null));
+    }
+
+    private sealed class FakeAccounts : IAccountStore
+    {
+        public Task EnsureProfileAsync(string userId, ValidatedIdentity identity, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<VersionedAccount?> GetAsync(string userId, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<AccountUpdateResult> UpdateAsync(string userId, AccountFields fields, string version, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     private sealed class FakeStore : IAuthenticationStore

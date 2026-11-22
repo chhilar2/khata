@@ -40,5 +40,12 @@ builder.Services.AddSingleton<IAuthenticationStore>(services =>
         .GetContainer(settings.CosmosDatabase, settings.CosmosContainer),
         services.GetRequiredService<TimeProvider>());
 });
+builder.Services.AddSingleton<IAccountStore>(services =>
+{
+    var settings = services.GetRequiredService<AuthSettings>();
+    return new CosmosAccountStore(services.GetRequiredService<CosmosClient>()
+        .GetContainer(settings.CosmosDatabase, settings.CosmosContainer),
+        services.GetRequiredService<TimeProvider>());
+});
 builder.Services.AddSingleton<AuthenticationService>();
 builder.Build().Run();
