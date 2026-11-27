@@ -30,6 +30,7 @@ public sealed class CosmosManagedProfileStore(Container container, TimeProvider 
         public string Kind { get; set; } = "balance";
         public string? Currency { get; set; }
         public long CashCents { get; set; }
+        public int ReceiptCount { get; set; }
         [JsonProperty("_etag", NullValueHandling = NullValueHandling.Ignore)]
         public string? ETag { get; set; }
     }

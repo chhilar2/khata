@@ -100,6 +100,45 @@ h1 span { color: #e59a4c; }
 .button-danger:hover { background: #7d3023; }
 .secondary { background: #476b5d; }
 .notice { padding: 1rem; border-radius: .75rem; background: #fff0e9; color: #873e26; }
+.story-page { max-width: 70rem; }
+.story-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.75rem; }
+.story-heading h1 { font-size: clamp(2.2rem, 4vw, 3.2rem); margin: .4rem 0; overflow-wrap: anywhere; }
+.story-heading h1 span { color: inherit; }
+.story-heading p { margin: 0; }
+.story-eyebrow { color: #597453; font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.story-muted { color: #66776a; }
+.story-small { font-size: .85rem; line-height: 1.6; }
+.story-hero { padding: clamp(1.4rem, 4vw, 2rem); border-radius: 1.4rem; background: #e4efdf; }
+.story-hero p { margin: .35rem 0; }
+.story-amount { font-size: clamp(1.8rem, 4vw, 2.7rem); font-weight: 800; letter-spacing: -.05em; overflow-wrap: anywhere; }
+.story-sprout { font-size: 3rem; }
+.story-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.story-balance { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1.5rem; }
+.story-balance > div { display: grid; gap: .3rem; }
+.story-balance > div + div { border-left: 1px solid #c6dac6; padding-left: 1.5rem; }
+.story-balance span { color: #627966; font-size: .8rem; }
+.story-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; }
+.story-stack { display: grid; gap: 1.1rem; }
+.story-panel { min-width: 0; padding: 1.5rem; margin-bottom: 1.1rem; border: 1px solid #e6eae3; border-radius: 1.4rem; background: white; box-shadow: 0 5px 16px #2b44300a; overflow-wrap: anywhere; }
+.story-grid .story-panel { margin-bottom: 1.1rem; }
+.story-panel h2 { margin: 0; font-size: 1.25rem; letter-spacing: -.03em; }
+.story-panel p { margin: .5rem 0; }
+.story-panel-top { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+.story-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; flex: none; border-radius: .75rem; background: #ecf2e8; }
+.story-icon-sand { background: #fbefd9; }
+.story-badge { padding: .3rem .6rem; border-radius: 2rem; background: #e7f2e3; color: #426d46; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.story-badge-sand { background: #fcf0d8; color: #765520; }
+.story-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+.story-list li { padding: .8rem 0; border-top: 1px solid #edf0ea; }
+.story-list li p { margin: .25rem 0 0; }
+.story-link { border: 0; padding: .35rem 0; background: transparent; color: #315b43; font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer; }
+.story-link:hover { text-decoration: underline; }
+.story-link:disabled { opacity: .6; cursor: wait; }
+.story-panel-link { display: inline-block; margin-top: .75rem; }
+.story-more { margin-top: .5rem; }
+.story-footnote { margin: 1rem 0 1.4rem; color: #66776a; font-size: .8rem; line-height: 1.6; }
+.story-note { padding: 1rem; border-radius: .75rem; background: #f9f1e2; color: #765d33; font-size: .85rem; line-height: 1.6; }
+.story-page .notice a { text-decoration: underline; font-weight: 700; }
 .footer { padding-block: 3rem; background: #263f32; color: white; }
 .footer-inner { display: flex; justify-content: space-between; gap: 2rem; align-items: flex-start; }
 .footer-brand { color: white; }
@@ -130,6 +169,10 @@ h1 span { color: #e59a4c; }
   .parents { grid-template-columns: 1fr; padding: 1.5rem; }
   .account-fields, .account-signin { grid-template-columns: 1fr; }
   .footer-inner { flex-direction: column; }
+  .story-heading { align-items: flex-start; flex-direction: column; }
+  .story-grid { grid-template-columns: 1fr; gap: 0; }
+  .story-balance { gap: .9rem; }
+  .story-balance > div + div { padding-left: .9rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

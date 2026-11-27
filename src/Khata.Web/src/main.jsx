@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import ManagedProfilesPage from './ManagedProfilesPage';
+import ProfileStoryPage from './ProfileStoryPage';
 import './style.css';
 
 const accountFields = [
@@ -171,6 +172,9 @@ function App() {
   const isPortal = window.location.pathname === '/portal';
   const isAccount = isPortal && new URLSearchParams(window.location.search).get('view') === 'account';
   const isProfiles = isPortal && new URLSearchParams(window.location.search).get('view') === 'profiles';
+  const isProfile = isPortal && new URLSearchParams(window.location.search).get('view') === 'profile';
+  const isInvestments = isPortal && new URLSearchParams(window.location.search).get('view') === 'investments';
+  const profileId = new URLSearchParams(window.location.search).get('id');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -278,7 +282,9 @@ function App() {
       </header>
       <main>
         {error && <p className="notice wrap" role="alert">{error}</p>}
-        {isProfiles && session ? (
+        {(isProfile || isInvestments) && session ? (
+          <ProfileStoryPage profileId={profileId} investmentsPage={isInvestments} />
+        ) : isProfiles && session ? (
           <ManagedProfilesPage session={session} />
         ) : isAccount && session ? (
           <AccountPage session={session} signOut={signOut} signingOut={signingOut} />

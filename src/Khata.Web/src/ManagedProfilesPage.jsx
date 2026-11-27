@@ -43,6 +43,11 @@ export default function ManagedProfilesPage({ session }) {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    if (editId) openProfile(editId);
+  }, []);
+
   async function loadList(token = null) {
     setBusy(true);
     setMessage('');
@@ -98,6 +103,10 @@ export default function ManagedProfilesPage({ session }) {
     setConfirmDelete(false);
     setConflict(false);
     setMessage('');
+    if (new URLSearchParams(window.location.search).has('edit')) {
+      window.location.assign('/portal?view=profiles');
+      return;
+    }
     loadList();
   }
 
@@ -191,6 +200,8 @@ export default function ManagedProfilesPage({ session }) {
       setSelected(null);
       setConfirmDelete(false);
       setConflict(false);
+      if (new URLSearchParams(window.location.search).has('edit'))
+        window.history.replaceState(null, '', '/portal?view=profiles');
       try {
         await fetchProfiles(null);
         setMessage('Profile deleted.');
@@ -221,7 +232,7 @@ export default function ManagedProfilesPage({ session }) {
             <ul className="profile-list">
               {profiles.map(profile => (
                 <li key={profile.id}>
-                  <button className="profile-link" type="button" disabled={busy} onClick={() => openProfile(profile.id)}>
+                  <button className="profile-link" type="button" disabled={busy} onClick={() => window.location.assign(`/portal?view=profile&id=${encodeURIComponent(profile.id)}`)}>
                     <span>{profile.displayName}</span><span aria-hidden="true">→</span>
                   </button>
                 </li>
